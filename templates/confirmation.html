@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Confirmation de paiement{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white text-center">
+                <h2 class="mb-0">✅ Paiement réussi !</h2>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <div style="font-size: 5rem;">🎉</div>
+                    <h4>Merci pour votre achat !</h4>
+                    <p class="text-muted">Votre commande a été traitée avec succès</p>
+                </div>
+                
+                <div class="card bg-light mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Détails de la transaction</h5>
+                        <hr>
+                        <div class="row text-start">
+                            <div class="col-md-6">
+                                <p><strong>ID Transaction:</strong></p>
+                                <p class="text-muted">{{ transaction_id }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Banque utilisée:</strong></p>
+                                <p class="text-muted">{{ banque }}</p>
+                            </div>
+                        </div>
+                        <div class="row text-start">
+                            <div class="col-md-6">
+                                <p><strong>Date:</strong></p>
+                                <p class="text-muted">{{ date_maintenant }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Client:</strong></p>
+                                <p class="text-muted">{{ session.get('username', 'N/A') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if 'Secours' in banque %}
+                <div class="alert alert-warning">
+                    <strong>ℹ️ Information:</strong> Votre paiement a été traité par la banque de secours 
+                    car la banque principale était temporairement indisponible. Votre transaction reste 
+                    totalement sécurisée.
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <strong>✅ Information:</strong> Votre paiement a été traité par la banque principale.
+                </div>
+                {% endif %}
+                
+                <div class="d-flex gap-2 justify-content-center mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">
+                        🔄 Faire un autre paiement
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Explication du système -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h6 class="card-title">🔍 Comment ça fonctionne ?</h6>
+                <p class="small text-muted mb-0">
+                    Le <strong>Circuit Breaker Pattern</strong> a été utilisé pour garantir la disponibilité 
+                    du service de paiement. Si la banque principale rencontre des problèmes, le système 
+                    bascule automatiquement vers la banque de secours pour assurer la continuité du service. 
+                    Après un délai de récupération (30 secondes), le système tente de revenir à la banque 
+                    principale.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
