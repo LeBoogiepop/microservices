@@ -12,7 +12,8 @@ from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
 import sqlite3
 import secrets
-import jwt
+from authlib.jose import jwt
+from authlib.jose.errors import ExpiredTokenError, InvalidTokenError
 from werkzeug.security import check_password_hash
 import os
 
@@ -55,25 +56,34 @@ def authenticate_credentials(username, password):
 
 def generate_jwt_token(username, expires_delta=timedelta(minutes=15), token_type='access', jti=None):
     """Génère un token JWT pour l'utilisateur fourni."""
-    expiration = datetime.utcnow() + expires_delta
+    now = datetime.utcnow()
+    expiration = now + expires_delta
     payload = {
         'username': username,
         'type': token_type,
+        'iat': now,
         'exp': expiration
     }
 
     if jti:
         payload['jti'] = jti
 
-    token = jwt.encode(
-        payload,
-        app.config['SECRET_KEY'],
-        algorithm='HS256'
-    )
-    # PyJWT peut renvoyer des bytes selon la version
-    if isinstance(token, bytes):
-        token = token.decode('utf-8')
+    # Authlib format: jwt.encode(header, payload, key)
+    header = {'alg': 'HS256'}
+    token = jwt.encode(header, payload, app.config['SECRET_KEY'])
+    # Authlib renvoie toujours une string
     return token, expiration
+
+def decode_token_ignore_expiration(token):
+    """Décode un token JWT en ignorant l'expiration (utile pour révoquer des tokens expirés)."""
+    try:
+        # Authlib permet de décoder sans vérifier l'expiration en utilisant claims_options
+        claims_options = {
+            'exp': {'essential': False}
+        }
+        return jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'], claims_options=claims_options)
+    except InvalidTokenError:
+        return None
 
 def store_refresh_token(user_id, jti, expires_at):
     """Stocke un refresh token dans la base de données."""
@@ -207,9 +217,9 @@ def verify_token():
             'payload': payload
         }), 200
 
-    except jwt.ExpiredSignatureError:
+    except ExpiredTokenError:
         return jsonify({'valid': False, 'message': 'Token expiré'}), 200
-    except jwt.InvalidTokenError as e:
+    except InvalidTokenError as e:
         return jsonify({'valid': False, 'message': f'Token invalide: {str(e)}'}), 200
 
 @app.route('/auth/refresh', methods=['POST'])
@@ -223,18 +233,15 @@ def refresh_token():
 
     try:
         payload = jwt.decode(raw_refresh, app.config['SECRET_KEY'], algorithms=['HS256'])
-    except jwt.ExpiredSignatureError:
-        try:
-            payload = jwt.decode(
-                raw_refresh,
-                app.config['SECRET_KEY'],
-                algorithms=['HS256'],
-                options={'verify_exp': False}
-            )
-        except jwt.InvalidTokenError:
+    except ExpiredTokenError:
+        # Pour les refresh tokens expirés, on essaie de décoder sans vérifier l'expiration
+        # pour récupérer le jti et le révoquer
+        payload = decode_token_ignore_expiration(raw_refresh)
+        if not payload:
             return jsonify({'message': 'Refresh token invalide'}), 401
+        # Si le token est expiré, on ne permet pas le refresh (comportement sécurisé)
         return jsonify({'message': 'Refresh token expiré, veuillez vous reconnecter'}), 401
-    except jwt.InvalidTokenError:
+    except InvalidTokenError:
         return jsonify({'message': 'Refresh token invalide'}), 401
 
     if payload.get('type') != 'refresh':
@@ -276,17 +283,14 @@ def logout():
 
     try:
         payload = jwt.decode(raw_refresh, app.config['SECRET_KEY'], algorithms=['HS256'])
-    except jwt.ExpiredSignatureError:
-        try:
-            payload = jwt.decode(
-                raw_refresh,
-                app.config['SECRET_KEY'],
-                algorithms=['HS256'],
-                options={'verify_exp': False}
-            )
-        except jwt.InvalidTokenError:
+    except ExpiredTokenError:
+        # Pour les refresh tokens expirés lors du logout, on accepte quand même
+        # pour permettre la révocation. On décode sans vérifier l'expiration.
+        payload = decode_token_ignore_expiration(raw_refresh)
+        if not payload:
             return jsonify({'message': 'Token invalide'}), 401
-    except jwt.InvalidTokenError:
+        # On continue pour révoquer le token même s'il est expiré
+    except InvalidTokenError:
         return jsonify({'message': 'Token invalide'}), 401
 
     if payload.get('type') != 'refresh':

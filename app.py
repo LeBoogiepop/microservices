@@ -8,7 +8,8 @@ import sqlite3
 import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-import jwt
+from authlib.jose import jwt
+from authlib.jose.errors import ExpiredTokenError, InvalidTokenError
 import requests
 
 app = Flask(__name__)
@@ -173,14 +174,21 @@ def get_user_token():
     
     # Vérifie si le token est expiré en le décodant
     try:
-        payload = jwt.decode(access_token, app.config['SECRET_KEY'], algorithms=['HS256'], options={"verify_exp": False})
+        # Authlib: on décode sans vérifier l'expiration pour vérifier manuellement
+        claims_options = {'exp': {'essential': False}}
+        payload = jwt.decode(access_token, app.config['SECRET_KEY'], algorithms=['HS256'], claims_options=claims_options)
         exp = payload.get('exp', 0)
-        import time
+        # Authlib retourne exp comme un timestamp (nombre)
         # Si le token expire dans moins de 1 minute, on le renouvelle
         if exp - time.time() < 60:
             if refresh_access_token():
                 return session.get('jwt_token')
-    except:
+    except (ExpiredTokenError, InvalidTokenError):
+        # Si le token est invalide, essaie de le renouveler
+        if refresh_access_token():
+            return session.get('jwt_token')
+        return None
+    except Exception:
         # Si le token est invalide, essaie de le renouveler
         if refresh_access_token():
             return session.get('jwt_token')
