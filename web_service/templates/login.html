@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Connexion{% endblock %}
+
+{% block content %}
+<style>
+    body { background-color: #f5f5f5; }
+    .card { border: 1px solid #000; }
+</style>
+<div class="row justify-content-center">
+    <div class="col-md-5 mt-5">
+        <div class="card">
+            <div class="card-body p-4">
+                <h4 class="mb-3 text-center">Cours Microservices ESME</h4>
+                <p class="text-muted mb-4 text-center">Connexion avec SQLite</p>
+                
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">
+                            <strong>Nom d'utilisateur</strong>
+                        </label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="username" 
+                               name="username" 
+                               placeholder="Entrez votre username"
+                               required
+                               autofocus>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            <strong>Mot de passe</strong>
+                        </label>
+                        <input type="password" 
+                               class="form-control" 
+                               id="password" 
+                               name="password" 
+                               placeholder="Entrez votre mot de passe"
+                               required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-dark w-100 mb-3">
+                        🔐 Se connecter
+                    </button>
+                </form>
+                
+                <div class="border-top pt-3">
+                    <small class="text-muted d-block text-center">
+                        <strong>💾 Base SQLite - Comptes disponibles :</strong><br>
+                        <code>admin / admin123</code><br>
+                        <code>user1 / password1</code><br>
+                        <code>maxim / maxim</code>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

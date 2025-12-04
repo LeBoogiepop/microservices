@@ -1,0 +1,113 @@
+
+
+networks:
+  micro_net:
+    driver: bridge
+
+services:
+  init_db:
+    build:
+      context: ./web_service
+      dockerfile: Dockerfile
+    command: ["python", "init_db.py"]
+    volumes:
+      - ./users.db:/app/users.db
+    networks:
+      - micro_net
+    restart: "no"
+
+  auth_service:
+    build:
+      context: ./auth_service
+      dockerfile: Dockerfile
+    depends_on:
+      init_db:
+        condition: service_completed_successfully
+    environment:
+      - JWT_SECRET_KEY=super-secret-key
+      - FLASK_ENV=production
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./users.db:/app/users.db
+    networks:
+      - micro_net
+    restart: unless-stopped
+
+  user_service:
+    build:
+      context: ./user_service
+      dockerfile: Dockerfile
+    depends_on:
+      init_db:
+        condition: service_completed_successfully
+    environment:
+      - FLASK_ENV=production
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./users.db:/app/users.db
+    networks:
+      - micro_net
+    restart: unless-stopped
+
+  orders_service:
+    build:
+      context: ./orders_service
+      dockerfile: Dockerfile
+    environment:
+      - FLASK_ENV=production
+    ports:
+      - "5003:5003"
+    volumes:
+      - ./orders.db:/app/orders.db
+    networks:
+      - micro_net
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    depends_on:
+      auth_service:
+        condition: service_started
+      user_service:
+        condition: service_started
+      orders_service:
+        condition: service_started
+    environment:
+      - AUTH_SERVICE_URL=http://auth_service:5001
+      - USER_SERVICE_URL=http://user_service:5002
+      - ORDERS_SERVICE_URL=http://orders_service:5003
+    ports:
+      - "5004:5004"
+    networks:
+      - micro_net
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web_service
+      dockerfile: Dockerfile
+    depends_on:
+      gateway:
+        condition: service_started
+    environment:
+      - AUTH_SERVICE_URL=http://auth_service:5001
+      - USER_SERVICE_URL=http://user_service:5002
+      - ORDERS_SERVICE_URL=http://orders_service:5003
+      - GATEWAY_URL=http://gateway:5004
+      - FLASK_ENV=production
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./users.db:/app/users.db
+      - ./orders.db:/app/orders.db
+    networks:
+      - micro_net
+    restart: unless-stopped
+
+
+
+

@@ -9,11 +9,11 @@ Responsabilités:
 """
 
 from flask import Flask, request, jsonify
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import sqlite3
 import secrets
 from authlib.jose import jwt
-from authlib.jose.errors import ExpiredTokenError, InvalidTokenError
+from authlib.jose.errors import ExpiredTokenError, InvalidTokenError, DecodeError, BadSignatureError
 from werkzeug.security import check_password_hash
 import os
 
@@ -56,7 +56,8 @@ def authenticate_credentials(username, password):
 
 def generate_jwt_token(username, expires_delta=timedelta(minutes=15), token_type='access', jti=None):
     """Génère un token JWT pour l'utilisateur fourni."""
-    now = datetime.utcnow()
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
     expiration = now + expires_delta
     payload = {
         'username': username,
@@ -71,7 +72,9 @@ def generate_jwt_token(username, expires_delta=timedelta(minutes=15), token_type
     # Authlib format: jwt.encode(header, payload, key)
     header = {'alg': 'HS256'}
     token = jwt.encode(header, payload, app.config['SECRET_KEY'])
-    # Authlib renvoie toujours une string
+    # Convertir en string si c'est bytes
+    if isinstance(token, bytes):
+        token = token.decode('utf-8')
     return token, expiration
 
 def decode_token_ignore_expiration(token):
@@ -81,8 +84,14 @@ def decode_token_ignore_expiration(token):
         claims_options = {
             'exp': {'essential': False}
         }
-        return jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'], claims_options=claims_options)
-    except InvalidTokenError:
+        decoded = jwt.decode(token, app.config['SECRET_KEY'], claims_options=claims_options)
+        # Si decoded est un objet Claims, convertir en dict
+        if hasattr(decoded, 'validate'):
+            # Ne pas valider l'expiration
+            decoded.validate(leeway=999999999)  # Leeway très grand pour ignorer l'expiration
+            return dict(decoded)
+        return decoded
+    except (InvalidTokenError, DecodeError, BadSignatureError):
         return None
 
 def store_refresh_token(user_id, jti, expires_at):
@@ -92,7 +101,7 @@ def store_refresh_token(user_id, jti, expires_at):
     cursor.execute('''
         INSERT OR REPLACE INTO refresh_tokens (jti, user_id, created_at, expires_at, revoked)
         VALUES (?, ?, ?, ?, 0)
-    ''', (jti, user_id, datetime.utcnow().isoformat(), expires_at.isoformat()))
+    ''', (jti, user_id, datetime.now(timezone.utc).isoformat(), expires_at.isoformat()))
     conn.commit()
     conn.close()
 
@@ -121,10 +130,14 @@ def is_refresh_token_revoked_or_expired(jti):
 
     try:
         expires = datetime.fromisoformat(expires_at)
+        # S'assurer que expires est timezone-aware
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
     except ValueError:
         return True, row
 
-    return expires <= datetime.utcnow(), row
+    # Utiliser datetime.now(timezone.utc) au lieu de datetime.utcnow()
+    return expires <= datetime.now(timezone.utc), row
 
 def create_token_pair(user_row):
     """Crée une paire de tokens (access + refresh)."""
@@ -191,7 +204,13 @@ def verify_token():
         return jsonify({'message': 'Token manquant'}), 400
 
     try:
-        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        decoded = jwt.decode(token, app.config['SECRET_KEY'])
+        # Si decoded est un objet Claims, convertir en dict
+        if hasattr(decoded, 'validate'):
+            decoded.validate()
+            payload = dict(decoded)
+        else:
+            payload = decoded
         username = payload.get('username')
         token_type = payload.get('type')
 
@@ -219,7 +238,7 @@ def verify_token():
 
     except ExpiredTokenError:
         return jsonify({'valid': False, 'message': 'Token expiré'}), 200
-    except InvalidTokenError as e:
+    except (InvalidTokenError, DecodeError, BadSignatureError) as e:
         return jsonify({'valid': False, 'message': f'Token invalide: {str(e)}'}), 200
 
 @app.route('/auth/refresh', methods=['POST'])
@@ -232,7 +251,13 @@ def refresh_token():
         return jsonify({'message': 'Refresh token manquant'}), 400
 
     try:
-        payload = jwt.decode(raw_refresh, app.config['SECRET_KEY'], algorithms=['HS256'])
+        decoded = jwt.decode(raw_refresh, app.config['SECRET_KEY'])
+        # Si decoded est un objet Claims, convertir en dict
+        if hasattr(decoded, 'validate'):
+            decoded.validate()
+            payload = dict(decoded)
+        else:
+            payload = decoded
     except ExpiredTokenError:
         # Pour les refresh tokens expirés, on essaie de décoder sans vérifier l'expiration
         # pour récupérer le jti et le révoquer
@@ -241,7 +266,7 @@ def refresh_token():
             return jsonify({'message': 'Refresh token invalide'}), 401
         # Si le token est expiré, on ne permet pas le refresh (comportement sécurisé)
         return jsonify({'message': 'Refresh token expiré, veuillez vous reconnecter'}), 401
-    except InvalidTokenError:
+    except (InvalidTokenError, DecodeError, BadSignatureError):
         return jsonify({'message': 'Refresh token invalide'}), 401
 
     if payload.get('type') != 'refresh':
@@ -282,7 +307,13 @@ def logout():
         return jsonify({'message': 'Refresh token manquant'}), 400
 
     try:
-        payload = jwt.decode(raw_refresh, app.config['SECRET_KEY'], algorithms=['HS256'])
+        decoded = jwt.decode(raw_refresh, app.config['SECRET_KEY'])
+        # Si decoded est un objet Claims, convertir en dict
+        if hasattr(decoded, 'validate'):
+            decoded.validate()
+            payload = dict(decoded)
+        else:
+            payload = decoded
     except ExpiredTokenError:
         # Pour les refresh tokens expirés lors du logout, on accepte quand même
         # pour permettre la révocation. On décode sans vérifier l'expiration.
@@ -290,7 +321,7 @@ def logout():
         if not payload:
             return jsonify({'message': 'Token invalide'}), 401
         # On continue pour révoquer le token même s'il est expiré
-    except InvalidTokenError:
+    except (InvalidTokenError, DecodeError, BadSignatureError):
         return jsonify({'message': 'Token invalide'}), 401
 
     if payload.get('type') != 'refresh':

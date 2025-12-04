@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Liste des utilisateurs{% endblock %}
+
+{% block content %}
+<style>
+    body { background-color: #f5f5f5; }
+    .card { border: 1px solid #000; }
+    .table { margin-bottom: 0; }
+</style>
+
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>👥 Utilisateurs de la base SQLite</h3>
+            <div>
+                <a href="{{ url_for('ajouter_utilisateur') }}" class="btn btn-sm btn-success me-2">
+                    ➕ Ajouter un utilisateur
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-sm btn-dark">
+                    ← Retour
+                </a>
+            </div>
+        </div>
+
+        <!-- Info -->
+        <div class="alert alert-light border mb-3">
+            <small>
+                <strong>Base de données:</strong> users.db | 
+                <strong>Total d'utilisateurs:</strong> {{ users|length }} | 
+                <strong>Connecté en tant que:</strong> {{ session.get('username') }}
+            </small>
+        </div>
+
+        <!-- Tableau des utilisateurs -->
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <strong>Liste complète des utilisateurs</strong>
+            </div>
+            <div class="card-body p-0">
+                {% if users %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 6%;">ID</th>
+                                <th style="width: 18%;">Username</th>
+                                <th style="width: 22%;">Email</th>
+                                <th style="width: 10%;">Rôle</th>
+                                <th style="width: 22%;">Créé le</th>
+                                <th style="width: 10%;">Statut</th>
+                                <th style="width: 12%;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td><strong>{{ user['id'] }}</strong></td>
+                                <td>
+                                    <strong>{{ user['username'] }}</strong>
+                                    {% if user['username'] == session.get('username') %}
+                                        <span class="badge bg-primary ms-1">Vous</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ user['email'] if user['email'] else '-' }}</small></td>
+                                <td>
+                                    {% if user['role'] == 'admin' %}
+                                        <span class="badge bg-danger">👑 Admin</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">👤 User</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ user['created_at'] }}</small></td>
+                                <td>
+                                    <span class="badge bg-success">✓ Actif</span>
+                                </td>
+                                <td>
+                                    {% if user['id'] == session.get('user_id') %}
+                                        <span class="badge bg-secondary">Vous</span>
+                                    {% else %}
+                                        <form method="POST" action="{{ url_for('supprimer_utilisateur', user_id=user['id']) }}" style="display: inline;" onsubmit="return confirm('Supprimer cet utilisateur ?');">
+                                            <button type="submit" class="btn btn-sm btn-danger">
+                                                🗑️ Supprimer
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <p class="text-muted mb-3">Aucun utilisateur dans la base de données</p>
+                    <a href="{{ url_for('ajouter_utilisateur') }}" class="btn btn-dark">
+                        ➕ Créer le premier utilisateur
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card mt-3">
+            <div class="card-body text-center py-3">
+                <a href="{{ url_for('ajouter_utilisateur') }}" class="btn btn-dark me-2">
+                    ➕ Ajouter un utilisateur
+                </a>
+                <a href="{{ url_for('api_users') }}" class="btn btn-outline-dark" target="_blank">
+                    📄 Voir en JSON
+                </a>
+            </div>
+        </div>
+
+        <!-- Info technique -->
+        <div class="card mt-3 border-0 bg-light">
+            <div class="card-body py-2">
+                <small class="text-muted">
+                    <strong>💾 Base de données:</strong> users.db (SQLite3)<br>
+                    <strong>📊 Structure:</strong> CREATE TABLE users (id, username, password, email, role, created_at)<br>
+                    <strong>🔌 API:</strong> GET /api/users - Liste tous les utilisateurs en JSON
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

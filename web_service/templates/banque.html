@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banque Sécurisée - Traitement</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .bank-container {
+            text-align: center;
+            max-width: 500px;
+            padding: 40px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            color: #000000;
+        }
+        .spinner {
+            width: 80px;
+            height: 80px;
+            margin: 30px auto;
+            border: 8px solid #e0e0e0;
+            border-top: 8px solid #000000;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .bank-logo {
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #000000;
+        }
+        .processing-text {
+            font-size: 18px;
+            color: #666;
+            margin-top: 20px;
+        }
+        .dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bank-container">
+        <div class="bank-logo">BANQUE</div>
+        <h4>Traitement du paiement</h4>
+        <div class="spinner"></div>
+        <p class="processing-text">Connexion au serveur bancaire<span class="dots"></span></p>
+        <p class="text-muted">Montant: {{ montant }} EUR</p>
+        <p class="text-muted small">Ne fermez pas cette page</p>
+        
+        <form id="paymentForm" method="POST" action="{{ url_for('traiter_paiement') }}" style="display: none;">
+            <input type="hidden" name="montant" value="{{ montant }}">
+        </form>
+    </div>
+
+    <script>
+        // Simule le traitement et soumet le formulaire après 2 secondes
+        setTimeout(function() {
+            document.getElementById('paymentForm').submit();
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Historique des actions{% endblock %}
+
+{% block content %}
+<style>
+    body { background-color: #f5f5f5; }
+    .card { border: 1px solid #000; }
+    .table { margin-bottom: 0; }
+    .badge-action {
+        padding: 0.5em 0.75em;
+        font-size: 0.9em;
+    }
+</style>
+
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>📋 Historique des actions</h3>
+            <div>
+                <a href="{{ url_for('api_user') }}" class="btn btn-sm btn-outline-dark me-2" target="_blank">
+                    📄 Voir JSON
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-sm btn-dark">
+                    ← Retour
+                </a>
+            </div>
+        </div>
+
+        <!-- Connecté en tant que -->
+        <div class="alert alert-light border mb-3">
+            <small>
+                <strong>Connecté:</strong> {{ session.get('username') }} | 
+                <strong>Total d'actions:</strong> {{ total }}
+            </small>
+            <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-dark float-end">Déconnexion</a>
+        </div>
+
+        <!-- Tableau d'historique -->
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <strong>Vos actions récentes</strong>
+            </div>
+            <div class="card-body p-0">
+                {% if historique %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 5%;">#</th>
+                                <th style="width: 20%;">Date & Heure</th>
+                                <th style="width: 20%;">Action</th>
+                                <th style="width: 45%;">Détails</th>
+                                <th style="width: 10%;">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for action in historique|reverse %}
+                            <tr>
+                                <td><small class="text-muted">{{ action.id }}</small></td>
+                                <td><small>{{ action.timestamp }}</small></td>
+                                <td><strong>{{ action.action }}</strong></td>
+                                <td><small>{{ action.details if action.details else '-' }}</small></td>
+                                <td>
+                                    {% if 'réussi' in action.action.lower() or 'connexion' in action.action.lower() %}
+                                        <span class="badge bg-success badge-action">✓ Succès</span>
+                                    {% elif 'échoué' in action.action.lower() or 'erreur' in action.action.lower() %}
+                                        <span class="badge bg-danger badge-action">✗ Erreur</span>
+                                    {% elif 'déconnexion' in action.action.lower() %}
+                                        <span class="badge bg-secondary badge-action">○ Déco</span>
+                                    {% else %}
+                                        <span class="badge bg-dark badge-action">◆ Info</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <p class="text-muted mb-0">Aucune action enregistrée pour le moment</p>
+                    <small class="text-muted">Effectuez des actions sur le site pour les voir apparaître ici</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Info API -->
+        <div class="card mt-3 border-0 bg-light">
+            <div class="card-body py-2">
+                <small class="text-muted">
+                    <strong>💡 API disponibles :</strong><br>
+                    • <code>GET /api/user</code> - Vos infos + historique en JSON<br>
+                    • <code>GET /api/users</code> - Liste de tous les utilisateurs<br>
+                    • <code>GET /api/historique</code> - Historique complet du site
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
